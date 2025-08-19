@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log/slog"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 )
 
 var debugOpt bool
@@ -24,6 +29,17 @@ func main() {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+
 	slog.Info("Launching reservoir mirror server.")
-	syncReservoirIndex()
+	wg.Add(1)
+	go ReservoirIndexServer(ctx, &wg)
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	<-signalChan
+	slog.Info("Shutting down...")
+	cancel()
+	wg.Wait()
 }
